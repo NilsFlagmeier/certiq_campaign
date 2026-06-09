@@ -12,9 +12,27 @@
   <div class="wrap wide" id="navMount"></div>
   <div class="wrap wide">
     <section class="panel">
+      <h2>UTM-Filter</h2>
+      <label class="field">Tracking-URL
+        <input id="trackingUrlInput" type="url" placeholder="https://certiq.tech/?user_id=…&utm_campaign=…" />
+      </label>
+      <div class="actions" style="margin-top:0">
+        <button id="parseUrlBtn" type="button">URL übernehmen</button>
+      </div>
+      <div class="stats" style="margin-top:12px">
+        <label class="field" style="flex:1;min-width:140px">utm_source<input id="utmSourceInput" value="newsletter" /></label>
+        <label class="field" style="flex:1;min-width:140px">utm_medium<input id="utmMediumInput" value="email" /></label>
+        <label class="field" style="flex:1;min-width:180px">utm_campaign<input id="utmCampaignInput" value="business_card_intro" /></label>
+      </div>
+      <div class="stats">
+        <label class="field" style="flex:1;min-width:120px">utm_content<input id="utmContentInput" placeholder="optional" /></label>
+        <label class="field" style="flex:1;min-width:120px">utm_term<input id="utmTermInput" placeholder="optional" /></label>
+        <label class="field" style="flex:1;min-width:140px">user_id<input id="userIdInput" placeholder="optional" /></label>
+      </div>
+      <p class="muted">Clarity: max. 10 API-Requests/Tag — manuelle Abfrage verbraucht 2 Requests.</p>
       <div class="actions">
-        <input id="campaignInput" value="business_card_intro" placeholder="utm_campaign Filter" style="width:auto;min-width:220px;margin-top:0" />
         <button id="loadBtn" type="button" class="btn primary">Analyse laden</button>
+        <button id="clarityBtn" type="button">Clarity abfragen</button>
         <button id="syncResendBtn" type="button">Resend → Store</button>
         <button id="syncTwentyBtn" type="button">Store → Twenty</button>
       </div>
@@ -47,6 +65,74 @@
     let report = null;
     let segmentFilter = "";
 
+    const FILTER_FIELDS = [
+      { id: "utmSourceInput", key: "utm_source" },
+      { id: "utmMediumInput", key: "utm_medium" },
+      { id: "utmCampaignInput", key: "utm_campaign" },
+      { id: "utmContentInput", key: "utm_content" },
+      { id: "utmTermInput", key: "utm_term" },
+      { id: "userIdInput", key: "user_id" },
+    ];
+
+    function parseTrackingUrl(url) {
+      const raw = (url || "").trim();
+      if (!raw) return {};
+      const normalized = raw.includes("://") ? raw : `https://placeholder.local/${raw.replace(/^\//, "")}`;
+      const params = new URL(normalized).searchParams;
+      const out = {};
+      FILTER_FIELDS.forEach(({ key }) => {
+        const value = (params.get(key) || "").trim();
+        if (value) out[key] = value;
+      });
+      return out;
+    }
+
+    function readFilters() {
+      const filters = {};
+      FILTER_FIELDS.forEach(({ id, key }) => {
+        const value = document.getElementById(id).value.trim();
+        if (value) filters[key] = value;
+      });
+      return filters;
+    }
+
+    function writeFilters(filters) {
+      FILTER_FIELDS.forEach(({ id, key }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (filters[key] != null) el.value = filters[key];
+      });
+    }
+
+    function filtersFromLocation() {
+      const params = new URLSearchParams(window.location.search);
+      const filters = {};
+      FILTER_FIELDS.forEach(({ key }) => {
+        const value = (params.get(key) || "").trim();
+        if (value) filters[key] = value;
+      });
+      return filters;
+    }
+
+    function syncLocation(filters) {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+      });
+      const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+      window.history.replaceState(null, "", next);
+    }
+
+    function buildAnalyticsQuery(filters, fetchClarity) {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+      });
+      if (fetchClarity) params.set("fetch_clarity", "1");
+      const query = params.toString();
+      return query ? `?${query}` : "";
+    }
+
     function tableLoadingRow(colspan, text) {
       return `<tr><td colspan="${colspan}" class="tableLoading"><span class="spinner sm" aria-hidden="true"></span>${escapeHtml(text)}</td></tr>`;
     }
@@ -54,14 +140,17 @@
     function setAnalyticsLoading(loading, statusText) {
       setPageLoading(loading);
       const loadBtn = document.getElementById("loadBtn");
+      const clarityBtn = document.getElementById("clarityBtn");
       const syncResendBtn = document.getElementById("syncResendBtn");
       const syncTwentyBtn = document.getElementById("syncTwentyBtn");
       const statusEl = document.getElementById("loadStatus");
 
       loadBtn.disabled = loading;
+      clarityBtn.disabled = loading;
       syncResendBtn.disabled = loading;
       syncTwentyBtn.disabled = loading;
       loadBtn.textContent = loading ? "Lädt …" : "Analyse laden";
+      clarityBtn.textContent = loading ? "Clarity lädt …" : "Clarity abfragen";
 
       if (loading && statusText) {
         statusEl.hidden = false;
@@ -127,12 +216,31 @@
         `<p><strong>${SEGMENT_LABELS[g.segment] || g.segment}:</strong> ${escapeHtml(g.text)}</p>`).join("");
     }
 
-    async function loadAnalytics() {
-      const campaign = document.getElementById("campaignInput").value.trim();
-      const query = campaign ? `?utm_campaign=${encodeURIComponent(campaign)}` : "";
-      setAnalyticsLoading(true, campaign
-        ? `Lade Analyse für Kampagne „${campaign}" …`
-        : "Lade Kampagnen-Analyse …");
+    function formatStatusText(filters, fetchClarity, body) {
+      const updated = new Date().toLocaleString("de-DE");
+      const filterParts = Object.entries(filters).map(([k, v]) => `${k}=${v}`);
+      const filterText = filterParts.length ? filterParts.join(", ") : "keine Filter";
+      let text = `Zuletzt geladen: ${updated} — Filter: ${filterText}`;
+      if (fetchClarity && body?.report?.clarity?.fetched) {
+        const clarity = body.report.clarity;
+        const fetchedAt = clarity.fetchedAt ? new Date(clarity.fetchedAt).toLocaleString("de-DE") : updated;
+        const urlSessions = clarity.totals?.urlSessions ?? 0;
+        text += ` — Clarity geladen: ${fetchedAt}, ${clarity.apiCalls || 0} Requests, ${urlSessions} URL-Sessions`;
+        if (clarity.error) text += ` — Hinweis: ${clarity.error}`;
+      }
+      return text;
+    }
+
+    async function loadAnalytics({ fetchClarity = false } = {}) {
+      const filters = readFilters();
+      syncLocation(filters);
+      const query = buildAnalyticsQuery(filters, fetchClarity);
+      const campaign = filters.utm_campaign || "";
+      setAnalyticsLoading(true, fetchClarity
+        ? "Clarity wird abgefragt (2 API-Requests) …"
+        : campaign
+          ? `Lade Analyse für „${campaign}" …`
+          : "Lade Kampagnen-Analyse …");
       try {
         const result = await callApi(`/api/admin/campaign/analytics${query}`);
         if (!result) return;
@@ -141,15 +249,26 @@
         renderKpis(report.kpis || {});
         renderSegments(report.segments || {});
         renderTables(report);
-        const updated = new Date().toLocaleString("de-DE");
-        document.getElementById("loadStatus").hidden = false;
-        document.getElementById("loadStatus").textContent = `Zuletzt geladen: ${updated}`;
+        const statusEl = document.getElementById("loadStatus");
+        statusEl.hidden = false;
+        statusEl.textContent = formatStatusText(filters, fetchClarity, result.body);
       } finally {
         setAnalyticsLoading(false);
       }
     }
 
-    document.getElementById("loadBtn").addEventListener("click", loadAnalytics);
+    document.getElementById("parseUrlBtn").addEventListener("click", () => {
+      const parsed = parseTrackingUrl(document.getElementById("trackingUrlInput").value);
+      if (!Object.keys(parsed).length) {
+        showToast("Keine UTM-Parameter in der URL gefunden");
+        return;
+      }
+      writeFilters(parsed);
+      showToast("UTM-Parameter übernommen");
+    });
+
+    document.getElementById("loadBtn").addEventListener("click", () => loadAnalytics({ fetchClarity: false }));
+    document.getElementById("clarityBtn").addEventListener("click", () => loadAnalytics({ fetchClarity: true }));
     document.getElementById("syncResendBtn").addEventListener("click", async () => {
       const btn = document.getElementById("syncResendBtn");
       btn.disabled = true;
@@ -164,7 +283,7 @@
         if (result) {
           showToast("Resend-Sync abgeschlossen");
           document.getElementById("debugOut").textContent = JSON.stringify(result.body, null, 2);
-          await loadAnalytics();
+          await loadAnalytics({ fetchClarity: false });
         }
       } finally {
         btn.disabled = false;
@@ -189,7 +308,10 @@
         setPageLoading(false);
       }
     });
-    loadAnalytics();
+
+    const locationFilters = filtersFromLocation();
+    if (Object.keys(locationFilters).length) writeFilters(locationFilters);
+    loadAnalytics({ fetchClarity: false });
   </script>
 </body>
 </html>

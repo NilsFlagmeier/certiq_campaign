@@ -7,6 +7,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
+from lib.utm_filter import UtmFilter, filter_to_dict, matches_store_row
+
 
 EVENT_TYPES = {
     "email_sent",
@@ -215,10 +217,10 @@ def list_events_for_sync(limit: int = 5000) -> list[dict[str, Any]]:
     return body
 
 
-def aggregate_campaign_summary(utm_campaign: str = "") -> dict[str, Any]:
+def aggregate_campaign_summary(utm_filter: UtmFilter | None = None) -> dict[str, Any]:
     rows = list_events_for_sync(limit=6000)
-    if utm_campaign:
-        rows = [row for row in rows if str(row.get("utm_campaign") or "") == utm_campaign]
+    if utm_filter and utm_filter.is_active():
+        rows = [row for row in rows if matches_store_row(row, utm_filter)]
 
     counts: dict[str, int] = defaultdict(int)
     per_lead: dict[str, dict[str, Any]] = {}
@@ -288,6 +290,7 @@ def aggregate_campaign_summary(utm_campaign: str = "") -> dict[str, Any]:
         segment_counts[lead["segment"]] += 1
 
     return {
+        "filters": filter_to_dict(utm_filter),
         "totals": dict(counts),
         "segments": dict(segment_counts),
         "leads": sorted(leads, key=lambda entry: entry["score"], reverse=True),

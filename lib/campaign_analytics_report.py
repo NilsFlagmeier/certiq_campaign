@@ -7,11 +7,26 @@ from typing import Any
 from lib.campaign_clarity import fetch_clarity_campaign_signals
 from lib.campaign_store import aggregate_campaign_summary, recommendation_for_segment
 from lib.twenty_crm import people_for_campaign
+from lib.utm_filter import UtmFilter, filter_to_dict
 
 
-def build_campaign_analytics_report(utm_campaign: str = "") -> dict[str, Any]:
-    summary = aggregate_campaign_summary(utm_campaign=utm_campaign)
-    clarity = fetch_clarity_campaign_signals(utm_campaign=utm_campaign)
+def _empty_clarity() -> dict[str, Any]:
+    return {
+        "configured": False,
+        "fetched": False,
+        "apiCalls": 0,
+        "byUserId": {},
+        "totals": {},
+    }
+
+
+def build_campaign_analytics_report(
+    utm_filter: UtmFilter | None = None,
+    *,
+    include_clarity: bool = False,
+) -> dict[str, Any]:
+    summary = aggregate_campaign_summary(utm_filter=utm_filter)
+    clarity = fetch_clarity_campaign_signals(utm_filter=utm_filter) if include_clarity else _empty_clarity()
     people_index: dict[str, dict[str, Any]] = {}
     email_index: dict[str, dict[str, Any]] = {}
     try:
@@ -59,12 +74,23 @@ def build_campaign_analytics_report(utm_campaign: str = "") -> dict[str, Any]:
         "complained": int(totals.get("resend.complained", 0)),
     }
 
+    active_filters = filter_to_dict(utm_filter)
+
     return {
-        "utmCampaign": utm_campaign,
+        "filters": active_filters,
+        "utmCampaign": active_filters.get("utm_campaign", ""),
         "kpis": kpis,
         "segments": summary.get("segments", {}),
         "totals": totals,
-        "clarity": {"configured": clarity.get("configured", False), "totals": clarity.get("totals", {})},
+        "clarity": {
+            "configured": clarity.get("configured", False),
+            "fetched": clarity.get("fetched", False),
+            "apiCalls": clarity.get("apiCalls", 0),
+            "fetchedAt": clarity.get("fetchedAt", ""),
+            "filtered": clarity.get("filtered", bool(active_filters)),
+            "error": clarity.get("error", ""),
+            "totals": clarity.get("totals", {}),
+        },
         "leads": enriched,
         "followUpNow": follow_up,
         "topInterest": top_interest,
