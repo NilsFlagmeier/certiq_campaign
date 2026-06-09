@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Certiq Admin Login</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1118;
+      --panel: #111a24;
+      --border: #223240;
+      --text: #e7f2f0;
+      --muted: #93a7b0;
+      --accent: #3dffd0;
+      --accent-text: #03201a;
+      --danger: #ff7b8a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(61, 255, 208, 0.08), transparent 35%),
+        radial-gradient(circle at 80% 90%, rgba(98, 129, 255, 0.15), transparent 35%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(20, 30, 42, 0.95), rgba(14, 21, 30, 0.95));
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      padding: 28px;
+    }
+    h1 { margin: 0 0 10px; font-size: 26px; }
+    p { margin: 0 0 20px; color: var(--muted); line-height: 1.5; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; }
+    input {
+      width: 100%;
+      border: 1px solid #2d4154;
+      background: #0a1016;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 15px;
+      margin-bottom: 14px;
+    }
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 700;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+    button:hover { filter: brightness(1.05); }
+    button:active { transform: translateY(1px); }
+    button[disabled] { opacity: 0.65; cursor: not-allowed; }
+    .error {
+      min-height: 22px;
+      color: var(--danger);
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Admin Portal</h1>
+    <p>Bitte mit Admin-Benutzername und Passwort anmelden.</p>
+    <form id="loginForm">
+      <label for="username">Benutzername</label>
+      <input id="username" type="text" autocomplete="username" required />
+      <label for="password">Passwort</label>
+      <input id="password" type="password" autocomplete="current-password" required />
+      <button id="submitBtn" type="submit">Einloggen</button>
+    </form>
+    <div id="error" class="error"></div>
+  </main>
+
+  <script>
+    const loginForm = document.getElementById("loginForm");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    const submitBtn = document.getElementById("submitBtn");
+    const error = document.getElementById("error");
+    const url = new URL(window.location.href);
+    const nextPath = url.searchParams.get("next") || "/admin";
+
+    function setSubmitting(isSubmitting) {
+      submitBtn.disabled = isSubmitting;
+      submitBtn.textContent = isSubmitting ? "Pruefe..." : "Einloggen";
+    }
+
+    async function alreadyAuthenticated() {
+      const res = await fetch("/api/admin/session", { credentials: "same-origin" });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.authenticated) {
+        window.location.replace(nextPath);
+      }
+    }
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      error.textContent = "";
+      setSubmitting(true);
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value;
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ username, password }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        error.textContent = body.message || "Login fehlgeschlagen.";
+        setSubmitting(false);
+        return;
+      }
+      window.location.replace(nextPath);
+    });
+
+    usernameInput.value = "admin";
+    alreadyAuthenticated();
+    usernameInput.focus();
+  </script>
+</body>
+</html>

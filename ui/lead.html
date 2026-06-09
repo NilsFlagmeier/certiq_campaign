@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Certiq Lead Intake</title>
+  <link rel="stylesheet" href="/admin/shared.css" />
+  <style>
+    .leadLayout { width: min(820px, calc(100vw - 24px)); margin: 0 auto 32px; }
+    .leadHero { margin-bottom: 14px; }
+    .leadHero h1 { margin: 0 0 8px; font-size: 24px; }
+    .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+    .formGrid .span2 { grid-column: 1 / -1; }
+    .fieldHint { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 400; line-height: 1.4; }
+    .checkboxRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .checkboxRow input { width: auto; margin: 0; }
+    .resultCard {
+      border: 1px solid #2b6a52;
+      background: #0f1f18;
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+    .resultCard.warn { border-color: #6a5030; background: #1a140c; }
+    .resultCard.err { border-color: #6a3a44; background: #1a1014; }
+    .resultCard h3 { margin: 0 0 8px; font-size: 16px; }
+    .resultLink { color: var(--accent); word-break: break-all; font-size: 13px; }
+    .shortcutHint { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    @media (max-width: 700px) { .formGrid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="pageLoader" id="pageLoader" aria-hidden="true"><div class="pageLoaderBar"></div></div>
+  <div class="wrap" id="navMount"></div>
+
+  <div class="leadLayout">
+    <header class="leadHero pageHeader">
+      <div>
+        <h1>Lead Intake</h1>
+        <p class="muted" id="pageStatus">Prüfe Session und Twenty CRM …</p>
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>Wofür ist das?</h2>
+      <p class="leadText">
+        Nach Messe, Event oder Visitenkarten-Austausch erfasst du hier schnell einen Kontakt.
+        Der Lead landet in <strong>Twenty CRM</strong> und kann später in der
+        <a href="/admin/campaign">E-Mail-Kampagne</a> angeschrieben werden.
+        Duplikate (gleiche E-Mail) werden erkannt — es wird kein zweiter Datensatz angelegt.
+      </p>
+      <div class="integrationGrid" id="statusChips"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Neuen Lead erfassen</h2>
+      <form id="leadForm" class="formGrid">
+        <label class="field span2">Firma
+          <input id="company" required autocomplete="organization" placeholder="z. B. Muster GmbH" />
+          <span class="fieldHint">Wird als Firmenfeld in Twenty gespeichert.</span>
+        </label>
+        <label class="field">Vorname
+          <input id="firstName" required autocomplete="given-name" />
+        </label>
+        <label class="field">Nachname
+          <input id="lastName" required autocomplete="family-name" />
+        </label>
+        <label class="field span2">E-Mail
+          <input id="email" type="email" required autocomplete="email" placeholder="name@firma.de" />
+          <span class="fieldHint">Pflichtfeld — dient als eindeutiger Schlüssel gegen Duplikate.</span>
+        </label>
+        <label class="field span2">Telefon (optional)
+          <input id="phone" type="tel" autocomplete="tel" placeholder="+49 170 1234567" />
+          <span class="fieldHint">Wird normalisiert angezeigt; Twenty-Sync für Telefon folgt separat.</span>
+        </label>
+        <div class="span2">
+          <label class="checkboxRow">
+            <input id="isManagingDirector" type="checkbox" />
+            Geschäftsführer / Entscheider
+          </label>
+          <span class="fieldHint">Setzt intern das Tag „geschaeftsfuehrer“ für spätere Segmentierung.</span>
+        </div>
+        <label class="field span2">Tags (kommagetrennt, optional)
+          <input id="tags" placeholder="automotive, messe_hannover" />
+          <span class="fieldHint">Freie Schlagworte für eure interne Einordnung.</span>
+        </label>
+        <label class="field span2">Consent / Quelle
+          <input id="consentSource" value="Visitenkarte - Event" />
+          <span class="fieldHint">Woher stammt die Einwilligung? z. B. „Messe Hannover Stand 12“.</span>
+        </label>
+        <div class="span2 actions">
+          <button id="submitBtn" type="submit" class="btn primary">Lead in Twenty speichern</button>
+          <button id="resetBtn" type="button" class="btn">Felder leeren</button>
+        </div>
+        <p class="shortcutHint span2">Tipp: <kbd>Ctrl</kbd> + <kbd>Enter</kbd> speichert direkt.</p>
+      </form>
+
+      <div id="resultBox" hidden></div>
+    </section>
+
+    <details class="detailsBlock panel">
+      <summary>Technische Antwort (Debug)</summary>
+      <pre class="debug" id="debugOut">Noch nichts gesendet.</pre>
+    </details>
+  </div>
+
+  <script src="/admin/shared.js"></script>
+  <script>
+    document.getElementById("navMount").innerHTML = adminNav("/admin/lead");
+    bindLogout();
+
+    const leadForm = document.getElementById("leadForm");
+    const submitBtn = document.getElementById("submitBtn");
+    const resultBox = document.getElementById("resultBox");
+    const debugOut = document.getElementById("debugOut");
+    const pageStatus = document.getElementById("pageStatus");
+    const statusChips = document.getElementById("statusChips");
+
+    const fields = {
+      company: document.getElementById("company"),
+      firstName: document.getElementById("firstName"),
+      lastName: document.getElementById("lastName"),
+      email: document.getElementById("email"),
+      phone: document.getElementById("phone"),
+      isManagingDirector: document.getElementById("isManagingDirector"),
+      tags: document.getElementById("tags"),
+      consentSource: document.getElementById("consentSource"),
+    };
+
+    function setSubmitting(active) {
+      setPageLoading(active);
+      submitBtn.disabled = active;
+      submitBtn.textContent = active ? "Speichere in Twenty …" : "Lead in Twenty speichern";
+    }
+
+    function renderStatusChips(integrations) {
+      const twenty = integrations?.twenty;
+      const chips = [
+        { ok: true, label: "Admin-Session aktiv" },
+        { ok: Boolean(twenty?.configured), label: twenty?.configured ? "Twenty CRM verbunden" : "Twenty CRM fehlt" },
+      ];
+      statusChips.innerHTML = chips.map((c) =>
+        `<span class="integrationChip ${c.ok ? "ok" : "warn"}">${escapeHtml(c.label)}</span>`
+      ).join("");
+    }
+
+    async function initPage() {
+      setPageLoading(true);
+      pageStatus.textContent = "Prüfe Session und Integrationen …";
+      const session = await callApi("/api/admin/session");
+      if (!session?.body?.authenticated) {
+        window.location.replace("/admin/login?next=%2Fadmin%2Flead");
+        return;
+      }
+      const status = await callApi("/api/admin/dashboard/status");
+      renderStatusChips(status?.body?.integrations);
+      const twentyOk = Boolean(status?.body?.integrations?.twenty?.configured);
+      pageStatus.textContent = twentyOk
+        ? "Bereit — Leads werden direkt in Twenty gespeichert."
+        : "Twenty CRM nicht vollständig konfiguriert — Speichern schlägt fehl.";
+      if (!twentyOk) showToast("TWENTY_API_URL und TWENTY_CRM_API_KEY in .env prüfen");
+      setPageLoading(false);
+      fields.company.focus();
+    }
+
+    function resetLeadFields() {
+      fields.company.value = "";
+      fields.firstName.value = "";
+      fields.lastName.value = "";
+      fields.email.value = "";
+      fields.phone.value = "";
+      fields.isManagingDirector.checked = false;
+      fields.tags.value = "";
+      fields.consentSource.value = "Visitenkarte - Event";
+      resultBox.hidden = true;
+      fields.company.focus();
+    }
+
+    function showResult(kind, title, bodyHtml) {
+      resultBox.hidden = false;
+      resultBox.className = `resultCard ${kind}`.trim();
+      resultBox.innerHTML = `<h3>${escapeHtml(title)}</h3>${bodyHtml}`;
+    }
+
+    leadForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submitBtn.disabled) return;
+      setSubmitting(true);
+      resultBox.hidden = true;
+
+      const tags = fields.tags.value.split(",").map((x) => x.trim()).filter(Boolean);
+      if (fields.isManagingDirector.checked) tags.push("geschaeftsfuehrer");
+
+      const payload = {
+        company: fields.company.value.trim(),
+        firstName: fields.firstName.value.trim(),
+        lastName: fields.lastName.value.trim(),
+        email: fields.email.value.trim(),
+        phone: fields.phone.value.trim(),
+        tags: [...new Set(tags)],
+        consentSource: fields.consentSource.value.trim(),
+      };
+
+      const response = await fetch("/api/admin/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      debugOut.textContent = JSON.stringify({ status: response.status, body }, null, 2);
+
+      if (response.ok) {
+        const created = Boolean(body.created);
+        showToast(created ? "Neuer Lead gespeichert" : "Kontakt existiert bereits");
+        showResult(
+          created ? "" : "warn",
+          created ? "Lead erfolgreich angelegt" : "Kontakt existiert bereits",
+          `<p class="muted">${escapeHtml(body.message || "")}</p>`
+            + (body.personId ? `<p class="muted">Twenty Person-ID: <code>${escapeHtml(body.personId)}</code></p>` : "")
+            + (body.phone ? `<p class="muted">Telefon (normalisiert): ${escapeHtml(body.phone)}</p>` : "")
+            + (body.link
+              ? `<p class="muted">Tracking-Link:<br><a class="resultLink" href="${escapeHtml(body.link)}" target="_blank" rel="noopener">${escapeHtml(body.link)}</a></p>`
+              : "")
+        );
+        if (created) resetLeadFields();
+      } else if (response.status === 401) {
+        window.location.replace("/admin/login?next=%2Fadmin%2Flead");
+      } else {
+        showToast(body.message || "Speichern fehlgeschlagen");
+        showResult("err", "Fehler beim Speichern", `<p class="muted">${escapeHtml(body.message || "Unbekannter Fehler")}</p>`);
+      }
+      setSubmitting(false);
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", resetLeadFields);
+
+    window.addEventListener("keydown", (event) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key !== "Enter") return;
+      event.preventDefault();
+      if (!submitBtn.disabled) leadForm.requestSubmit();
+    });
+
+    initPage();
+  </script>
+</body>
+</html>

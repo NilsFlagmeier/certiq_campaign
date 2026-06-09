@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Certiq Admin — Performance</title>
+  <link rel="stylesheet" href="/admin/shared.css" />
+</head>
+<body>
+  <div class="pageLoader" id="pageLoader" aria-hidden="true"><div class="pageLoaderBar"></div></div>
+  <div class="wrap" id="navMount"></div>
+  <div class="wrap">
+    <header class="pageHeader">
+      <div>
+        <h1>Performance Übersicht</h1>
+        <p class="muted" id="lastUpdated">Metriken werden geladen …</p>
+      </div>
+      <button type="button" class="btn" id="refreshBtn">Aktualisieren</button>
+    </header>
+
+    <section class="panel">
+      <h2>Was zeigt diese Seite?</h2>
+      <p class="leadText">
+        Hier siehst du auf einen Blick, wie <strong id="targetSiteLabel">certiq.tech</strong> performt —
+        Ladegeschwindigkeit (Google PageSpeed), Nutzerverhalten (Microsoft Clarity) und Sichtbarkeit bei Google (Search Console).
+        Grüne Werte sind gut, gelbe Werte solltet ihr priorisiert verbessern, rote Werte können Absprünge und weniger Leads verursachen.
+      </p>
+    </section>
+
+    <section class="panel" id="integrationPanel">
+      <h2>Angebundene Dienste</h2>
+      <div class="integrationGrid" id="integrationGrid">
+        <div class="integrationChip loading"><span class="spinner sm" aria-hidden="true"></span> Status wird geladen …</div>
+      </div>
+    </section>
+
+    <div class="grid3" id="metricsGrid">
+      <section class="card metricCard loading" id="cardPsMobile">
+        <div class="metricHead">
+          <h2>PageSpeed Mobile</h2>
+          <span class="metricBadge" id="badgePsMobile"></span>
+        </div>
+        <div class="muted">Performance Score (0–100)</div>
+        <div class="value" id="psMobile"><span class="spinner" aria-hidden="true"></span></div>
+        <div class="guideBox" id="psMobileGuide">Lädt …</div>
+      </section>
+      <section class="card metricCard loading" id="cardPsDesktop">
+        <div class="metricHead">
+          <h2>PageSpeed Desktop</h2>
+          <span class="metricBadge" id="badgePsDesktop"></span>
+        </div>
+        <div class="muted">Performance Score (0–100)</div>
+        <div class="value" id="psDesktop"><span class="spinner" aria-hidden="true"></span></div>
+        <div class="guideBox" id="psDesktopGuide">Lädt …</div>
+      </section>
+      <section class="card metricCard loading" id="cardClarity">
+        <div class="metricHead">
+          <h2>Clarity</h2>
+          <span class="metricBadge" id="badgeClarity"></span>
+        </div>
+        <div class="muted">Besucher-Sessions (letzte 3 Tage)</div>
+        <div class="value" id="claritySessions"><span class="spinner" aria-hidden="true"></span></div>
+        <div class="guideBox" id="clarityGuide">Lädt …</div>
+      </section>
+    </div>
+
+    <section class="panel metricPanel loading" id="pagespeedDetail">
+      <div class="metricHead">
+        <h2>Core Web Vitals — im Detail</h2>
+        <span class="metricBadge" id="badgeCwv">—</span>
+      </div>
+      <p class="leadText">
+        Die vier Kennzahlen unten sind Googles wichtigste Ladezeit-Signale. Mobile-Werte zählen für SEO und Ads meist stärker als Desktop.
+      </p>
+      <table class="data" id="cwvTable">
+        <thead>
+          <tr>
+            <th>Metrik</th>
+            <th>Mobile</th>
+            <th>Desktop</th>
+            <th>Optimierung</th>
+          </tr>
+        </thead>
+        <tbody id="cwvBody">
+          <tr><td colspan="4" class="muted">Lade Messwerte …</td></tr>
+        </tbody>
+      </table>
+      <div class="guideBox" id="pagespeedTips">
+        <strong>Nächste Schritte für Certiq</strong>
+        <ul class="tipList" id="pagespeedTipsList">
+          <li>Warte auf PageSpeed-Daten …</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel metricPanel loading" id="clarityDetail">
+      <div class="metricHead">
+        <h2>Clarity — Nutzerverhalten</h2>
+        <span class="metricBadge" id="badgeClarityDetail">—</span>
+      </div>
+      <p class="leadText">
+        Clarity zeigt, ob Besucher eure Seite wirklich lesen oder frustriert abspringen. Kein Ersatz für Analytics, aber ideal für UX-Probleme.
+      </p>
+      <div class="clarityGrid" id="clarityStats">
+        <div class="clarityStat"><div class="label">Sessions</div><div class="num" id="clarityStatSessions">—</div></div>
+        <div class="clarityStat"><div class="label">Ø Scrolltiefe</div><div class="num" id="clarityStatScroll">—</div></div>
+        <div class="clarityStat"><div class="label">Frustration</div><div class="num" id="clarityStatFrustration">—</div></div>
+      </div>
+      <div class="detailSection" id="clarityTopUrlsSection" hidden>
+        <h3>Meistbesuchte Seiten</h3>
+        <table class="data" id="clarityTopUrls"><tbody></tbody></table>
+      </div>
+      <div class="guideBox" id="clarityTips">
+        <strong>Einordnung</strong>
+        <p class="muted" id="claritySummary">Lädt …</p>
+        <ul class="tipList" id="clarityTipsList"></ul>
+      </div>
+    </section>
+
+    <section class="panel metricPanel loading" id="gscPanel">
+      <div class="metricHead">
+        <h2>Google Search Console — organische Suche</h2>
+        <span class="metricBadge" id="badgeGsc"></span>
+      </div>
+      <p class="leadText">
+        Wie oft erscheint certiq.tech in Google, wie oft wird geklickt — und welche Suchbegriffe bringen Traffic?
+      </p>
+      <div class="stats" id="gscStats">
+        <span class="statChip">Klicks <strong id="gscClicks">—</strong></span>
+        <span class="statChip">Impressionen <strong id="gscImpressions">—</strong></span>
+        <span class="statChip">CTR <strong id="gscCtr">—</strong>%</span>
+        <span class="statChip">Ø Position <strong id="gscPos">—</strong></span>
+      </div>
+      <div class="gscExplain">
+        <div class="gscExplainItem">
+          <strong>Klicks</strong>
+          Besucher, die über Google auf eure Seite kamen. Direkter Indikator für organischen Traffic.
+        </div>
+        <div class="gscExplainItem">
+          <strong>Impressionen</strong>
+          Wie oft euer Snippet in Suchergebnissen angezeigt wurde — auch ohne Klick.
+        </div>
+        <div class="gscExplainItem">
+          <strong>CTR (Klickrate)</strong>
+          Klicks ÷ Impressionen. Niedrige CTR = Snippet oder Position überarbeiten.
+        </div>
+        <div class="gscExplainItem">
+          <strong>Ø Position</strong>
+          Durchschnittliche Ranking-Position (1 = ganz oben). Unter 10 ist stark, über 20 braucht SEO-Arbeit.
+        </div>
+      </div>
+      <div class="grid2" id="gscTables" hidden>
+        <div class="detailSection">
+          <h3>Top Suchbegriffe</h3>
+          <div id="gscTopQueries"></div>
+        </div>
+        <div class="detailSection">
+          <h3>Top Seiten</h3>
+          <div id="gscTopPages"></div>
+        </div>
+      </div>
+      <div class="guideBox" id="gscTips">
+        <strong>Einordnung</strong>
+        <p class="muted" id="gscSummary">Lädt …</p>
+        <ul class="tipList" id="gscTipsList"></ul>
+      </div>
+    </section>
+
+    <details class="detailsBlock panel"><summary>Debug JSON (für Entwickler)</summary>
+      <pre class="debug" id="debugOut">{}</pre>
+    </details>
+  </div>
+  <script src="/admin/shared.js"></script>
+  <script>
+    document.getElementById("navMount").innerHTML = adminNav("/admin");
+    bindLogout();
+
+    const debug = {};
+
+    function setGuideBox(id, rating, text) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.className = `guideBox ${rating?.state || ""}`.trim();
+      el.innerHTML = text;
+    }
+
+    function setScoreCard(valueId, guideId, score, targetUrl) {
+      const valueEl = document.getElementById(valueId);
+      const rating = applyScoreClass(valueEl, score);
+      if (valueEl) valueEl.textContent = score ?? "—";
+      setGuideBox(guideId, rating, `<strong>${escapeHtml(rating.label)}</strong> — ${escapeHtml(rating.hint)}`);
+      if (targetUrl) document.getElementById("targetSiteLabel").textContent = targetUrl.replace(/^https?:\/\//, "");
+    }
+
+    function renderIntegrations(integrations) {
+      const grid = document.getElementById("integrationGrid");
+      const hints = {
+        pagespeed: "Ladezeit & SEO",
+        clarity: "Nutzer-Verhalten",
+        gsc: "Google-Rankings",
+        resend: "E-Mail-Versand",
+        supabase: "Event-Tracking",
+        twenty: "CRM-Leads",
+        mistral: "KI-Texte",
+      };
+      const items = Object.entries(integrations || {}).map(([key, item]) => {
+        const ok = Boolean(item.configured);
+        const cls = ok ? "ok" : "warn";
+        const label = item.label || key;
+        const hint = hints[key] ? ` (${hints[key]})` : "";
+        return `<span class="integrationChip ${cls}" title="${escapeHtml(key)}">${escapeHtml(label)}${escapeHtml(hint)}</span>`;
+      });
+      grid.innerHTML = items.length ? items.join("") : '<span class="integrationChip warn">Keine Integrationen erkannt</span>';
+    }
+
+    function buildPageSpeedTips(mobile, desktop) {
+      const tips = [];
+      const mobLcp = cwvRating("lcp", mobile?.lcp);
+      const mobTbt = cwvRating("tbt", mobile?.tbt);
+      const mobCls = cwvRating("cls", mobile?.cls);
+      if (mobLcp.state === "bad" || mobLcp.state === "warn") {
+        tips.push("Mobile LCP verbessern: Hero-Bild optimieren, CDN nutzen, weniger blockierendes JS beim ersten Paint.");
+      }
+      if (mobTbt.state === "bad" || mobTbt.state === "warn") {
+        tips.push("JavaScript entlasten: Analytics/Chat erst nach Interaktion laden, Bundle-Größe prüfen.");
+      }
+      if (mobCls.state === "bad" || mobCls.state === "warn") {
+        tips.push("Layout-Shifts beheben: feste Bildgrößen, keine spät einblendenden Banner über Content.");
+      }
+      if (!tips.length) {
+        tips.push("Mobile Core Web Vitals sehen solide aus — regelmäßig messen, besonders nach Deployments.");
+      }
+      tips.push("Nach Deployments erneut messen — Performance kann sich schnell ändern.");
+      return tips;
+    }
+
+    function applyPageSpeed(body) {
+      debug.pagespeed = body;
+      const cards = ["cardPsMobile", "cardPsDesktop", "pagespeedDetail"];
+      if (!body || body.configured === false) {
+        setMetricBadge("badgePsMobile", "off", "Nicht konfiguriert");
+        setMetricBadge("badgePsDesktop", "off", "Nicht konfiguriert");
+        setMetricBadge("badgeCwv", "off", "—");
+        setScoreCard("psMobile", "psMobileGuide", "n/a");
+        setScoreCard("psDesktop", "psDesktopGuide", "n/a");
+        document.getElementById("cwvBody").innerHTML = `<tr><td colspan="4">${escapeHtml(body?.message || "GOOGLE_PAGESPEED_API_KEY fehlt")}</td></tr>`;
+        document.getElementById("pagespeedTipsList").innerHTML = "<li>API-Key in .env hinterlegen und Seite neu laden.</li>";
+        setMetricCardLoading(cards, false);
+        return;
+      }
+      if (body.status === "error") {
+        const msg = body.message || "Anfrage fehlgeschlagen";
+        setMetricBadge("badgePsMobile", "err", "Fehler");
+        setMetricBadge("badgePsDesktop", "err", "Fehler");
+        setMetricBadge("badgeCwv", "err", "Fehler");
+        setMetricValue("psMobile", "—", "", false);
+        setMetricValue("psDesktop", "—", "", false);
+        setGuideBox("psMobileGuide", { state: "bad" }, escapeHtml(msg));
+        setGuideBox("psDesktopGuide", { state: "bad" }, escapeHtml(msg));
+        document.getElementById("cwvBody").innerHTML = `<tr><td colspan="4">${escapeHtml(msg)}</td></tr>`;
+        document.getElementById("pagespeedTipsList").innerHTML = `<li>${escapeHtml(msg)}</li>`;
+        setMetricCardLoading(cards, false);
+        return;
+      }
+
+      setMetricBadge("badgePsMobile", "ok", "Live");
+      setMetricBadge("badgePsDesktop", "ok", "Live");
+      setMetricBadge("badgeCwv", "ok", "Gemessen");
+      setScoreCard("psMobile", "psMobileGuide", body.mobile?.score, body.targetUrl);
+      setScoreCard("psDesktop", "psDesktopGuide", body.desktop?.score, body.targetUrl);
+      document.getElementById("cwvBody").innerHTML = renderCwvDetailTable(body.mobile, body.desktop);
+      const tips = buildPageSpeedTips(body.mobile, body.desktop);
+      document.getElementById("pagespeedTipsList").innerHTML = tips.map((t) => `<li>${escapeHtml(t)}</li>`).join("");
+      setMetricCardLoading(cards, false);
+    }
+
+    function applyClarity(body) {
+      debug.clarity = body;
+      const sections = ["cardClarity", "clarityDetail"];
+      if (!body || body.configured === false) {
+        setMetricBadge("badgeClarity", "off", "Nicht konfiguriert");
+        setMetricBadge("badgeClarityDetail", "off", "—");
+        setMetricValue("claritySessions", "n/a", "", false, "clarityMeta");
+        setGuideBox("clarityGuide", { state: "warn" }, escapeHtml(body?.message || "CLARITY_TOKEN oder CLARITY_PROJECT_ID fehlt"));
+        document.getElementById("claritySummary").textContent = "Clarity nicht verbunden.";
+        document.getElementById("clarityTipsList").innerHTML = "<li>Token in Clarity unter Settings → Data Export erzeugen.</li>";
+        setMetricCardLoading(sections, false);
+        return;
+      }
+      if (body.status === "error") {
+        const msg = body.message || "Anfrage fehlgeschlagen";
+        setMetricBadge("badgeClarity", "err", "Fehler");
+        setMetricBadge("badgeClarityDetail", "err", "Fehler");
+        setMetricValue("claritySessions", "—", "", false, "clarityMeta");
+        setGuideBox("clarityGuide", { state: "bad" }, escapeHtml(msg));
+        document.getElementById("claritySummary").textContent = msg;
+        document.getElementById("clarityTipsList").innerHTML = "<li>Token in Clarity unter Settings → Data Export prüfen (max. 10 Requests/Tag).</li>";
+        setMetricCardLoading(sections, false);
+        return;
+      }
+
+      const ins = parseClarityInsights(body);
+      const assessment = clarityAssessment(ins);
+      setMetricBadge("badgeClarity", "ok", "Live");
+      setMetricBadge("badgeClarityDetail", assessment.state === "good" ? "ok" : "warn", "Ausgewertet");
+      setMetricValue("claritySessions", ins.sessions ?? "—", "", false, "clarityMeta");
+      setGuideBox("clarityGuide", assessment, `<strong>${escapeHtml(assessment.summary)}</strong>`);
+
+      document.getElementById("clarityStatSessions").textContent = ins.sessions ?? "—";
+      document.getElementById("clarityStatScroll").textContent = ins.scrollDepth != null ? `${ins.scrollDepth}%` : "—";
+      document.getElementById("clarityStatFrustration").textContent = ins.frustration ?? 0;
+      document.getElementById("claritySummary").textContent = assessment.summary;
+      document.getElementById("clarityTipsList").innerHTML = assessment.tips.map((t) => `<li>${escapeHtml(t)}</li>`).join("");
+
+      const urlSection = document.getElementById("clarityTopUrlsSection");
+      if (ins.topUrls?.length) {
+        urlSection.hidden = false;
+        document.getElementById("clarityTopUrls").innerHTML = `
+          <table class="data"><thead><tr><th>Seite</th><th>Sessions</th></tr></thead>
+          <tbody>${ins.topUrls.map((u) => `<tr><td>${escapeHtml(u.url)}</td><td>${u.count}</td></tr>`).join("")}</tbody></table>`;
+      } else {
+        urlSection.hidden = true;
+      }
+      setMetricCardLoading(sections, false);
+    }
+
+    function applyGsc(body) {
+      debug.gsc = body;
+      if (!body || body.configured === false) {
+        setMetricBadge("badgeGsc", "off", "Nicht konfiguriert");
+        document.getElementById("gscSummary").textContent = body?.message || "GSC nicht eingerichtet.";
+        document.getElementById("gscTipsList").innerHTML = `
+          <li><code>GSC_SITE_URL</code> ist gesetzt — gut.</li>
+          <li>Für Live-Daten: <code>GSC_ACCESS_TOKEN</code> oder Service-Account (<code>GSC_SERVICE_ACCOUNT_JSON</code>) hinterlegen.</li>
+          <li>Alternativ: Daten manuell in der Search Console prüfen.</li>`;
+        document.getElementById("gscTables").hidden = true;
+        setMetricCardLoading(["gscPanel"], false);
+        return;
+      }
+      if (body.status === "error") {
+        setMetricBadge("badgeGsc", "err", "Fehler");
+        document.getElementById("gscSummary").textContent = body.message || "Anfrage fehlgeschlagen";
+        setMetricCardLoading(["gscPanel"], false);
+        return;
+      }
+
+      setMetricBadge("badgeGsc", "ok", "Live");
+      document.getElementById("gscClicks").textContent = body.clicks ?? 0;
+      document.getElementById("gscImpressions").textContent = body.impressions ?? 0;
+      document.getElementById("gscCtr").textContent = body.ctr ?? 0;
+      document.getElementById("gscPos").textContent = body.position ?? 0;
+
+      const hints = gscMetricHints(body.clicks, body.impressions, body.ctr, body.position);
+      const period = body.period ? `${body.period.start} – ${body.period.end}` : "letzte 7 Tage";
+      document.getElementById("gscSummary").textContent = `${hints.summary} Zeitraum: ${period}.`;
+      document.getElementById("gscTipsList").innerHTML = hints.tips.map((t) => `<li>${escapeHtml(t)}</li>`).join("");
+
+      if (body.topQueries?.length || body.topPages?.length) {
+        document.getElementById("gscTables").hidden = false;
+        document.getElementById("gscTopQueries").innerHTML = renderSimpleTable(body.topQueries, "Suchbegriff");
+        document.getElementById("gscTopPages").innerHTML = renderSimpleTable(body.topPages, "Seite");
+      }
+      setMetricCardLoading(["gscPanel"], false);
+    }
+
+    async function loadDashboard() {
+      const refreshBtn = document.getElementById("refreshBtn");
+      refreshBtn.disabled = true;
+      setPageLoading(true);
+      setMetricCardLoading(["cardPsMobile", "cardPsDesktop", "cardClarity", "pagespeedDetail", "clarityDetail", "gscPanel"], true);
+      setMetricValue("psMobile", "", "", true);
+      setMetricValue("psDesktop", "", "", true);
+      setMetricValue("claritySessions", "", "", true, "clarityMeta");
+      document.getElementById("gscSummary").textContent = "Lade Search-Console-Daten …";
+
+      const statusPromise = callApi("/api/admin/dashboard/status").then((result) => {
+        if (result?.body?.integrations) {
+          renderIntegrations(result.body.integrations);
+          const url = result.body.integrations.pagespeed?.targetUrl;
+          if (url) document.getElementById("targetSiteLabel").textContent = url.replace(/^https?:\/\//, "");
+        }
+      });
+
+      await Promise.all([
+        statusPromise,
+        callApi("/api/admin/metrics/pagespeed").then((r) => applyPageSpeed(r?.body)),
+        callApi("/api/admin/metrics/clarity").then((r) => applyClarity(r?.body)),
+        callApi("/api/admin/metrics/gsc").then((r) => applyGsc(r?.body)),
+      ]);
+
+      document.getElementById("lastUpdated").textContent = `Zuletzt aktualisiert: ${new Date().toLocaleString("de-DE")}`;
+      document.getElementById("debugOut").textContent = JSON.stringify(debug, null, 2);
+      setPageLoading(false);
+      refreshBtn.disabled = false;
+    }
+
+    document.getElementById("refreshBtn").addEventListener("click", loadDashboard);
+    loadDashboard();
+  </script>
+</body>
+</html>

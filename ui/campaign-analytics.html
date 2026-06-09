@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Certiq Kampagnen-Analyse</title>
+  <link rel="stylesheet" href="/admin/shared.css" />
+</head>
+<body>
+  <div class="pageLoader" id="pageLoader" aria-hidden="true"><div class="pageLoaderBar"></div></div>
+  <div class="wrap wide" id="navMount"></div>
+  <div class="wrap wide">
+    <section class="panel">
+      <div class="actions">
+        <input id="campaignInput" value="business_card_intro" placeholder="utm_campaign Filter" style="width:auto;min-width:220px;margin-top:0" />
+        <button id="loadBtn" type="button" class="btn primary">Analyse laden</button>
+        <button id="syncResendBtn" type="button">Resend → Store</button>
+        <button id="syncTwentyBtn" type="button">Store → Twenty</button>
+      </div>
+      <p class="muted" id="loadStatus" hidden></p>
+    </section>
+    <div class="stats" id="kpiRow"></div>
+    <div class="stats" id="segmentRow"></div>
+    <section class="panel">
+      <h2>Follow-up jetzt</h2>
+      <table class="data" id="followUpTable"><thead><tr><th>Name</th><th>E-Mail</th><th>Segment</th><th>Score</th><th>Empfehlung</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section class="panel">
+      <h2>Top-Interesse</h2>
+      <table class="data" id="topTable"><thead><tr><th>Name</th><th>E-Mail</th><th>Score</th><th>Opens</th><th>Clicks</th><th>Clarity</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section class="panel">
+      <h2>Alle Leads</h2>
+      <table class="data" id="allTable"><thead><tr><th>Name</th><th>Firma</th><th>Segment</th><th>Score</th><th>Events</th><th>Clarity</th><th>Empfehlung</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section class="panel">
+      <h2>Verhalten-Leitfaden</h2>
+      <div id="guideBox"></div>
+    </section>
+    <details class="detailsBlock panel"><summary>Debug JSON</summary><pre class="debug" id="debugOut"></pre></details>
+  </div>
+  <script src="/admin/shared.js"></script>
+  <script>
+    document.getElementById("navMount").innerHTML = adminNav("/admin/campaign/analytics");
+    bindLogout();
+    let report = null;
+    let segmentFilter = "";
+
+    function tableLoadingRow(colspan, text) {
+      return `<tr><td colspan="${colspan}" class="tableLoading"><span class="spinner sm" aria-hidden="true"></span>${escapeHtml(text)}</td></tr>`;
+    }
+
+    function setAnalyticsLoading(loading, statusText) {
+      setPageLoading(loading);
+      const loadBtn = document.getElementById("loadBtn");
+      const syncResendBtn = document.getElementById("syncResendBtn");
+      const syncTwentyBtn = document.getElementById("syncTwentyBtn");
+      const statusEl = document.getElementById("loadStatus");
+
+      loadBtn.disabled = loading;
+      syncResendBtn.disabled = loading;
+      syncTwentyBtn.disabled = loading;
+      loadBtn.textContent = loading ? "Lädt …" : "Analyse laden";
+
+      if (loading && statusText) {
+        statusEl.hidden = false;
+        statusEl.textContent = statusText;
+      }
+
+      if (!loading) return;
+
+      const chip = '<span class="statChip loading"><span class="spinner sm" aria-hidden="true"></span> Lädt …</span>';
+      document.getElementById("kpiRow").innerHTML = chip.repeat(6);
+      document.getElementById("segmentRow").innerHTML = chip.repeat(4);
+      document.querySelector("#followUpTable tbody").innerHTML = tableLoadingRow(5, "Follow-up-Leads werden geladen …");
+      document.querySelector("#topTable tbody").innerHTML = tableLoadingRow(6, "Top-Interesse wird berechnet …");
+      document.querySelector("#allTable tbody").innerHTML = tableLoadingRow(7, "Alle Leads werden aggregiert …");
+      document.getElementById("guideBox").innerHTML = '<p class="muted"><span class="spinner sm" aria-hidden="true"></span> Verhalten-Leitfaden wird vorbereitet …</p>';
+    }
+
+    function renderKpis(kpis) {
+      const items = [
+        ["Gesendet", kpis.sent], ["Geöffnet", kpis.opened], ["Geklickt", kpis.clicked],
+        ["Bounced", kpis.bounced], ["Abgemeldet", kpis.unsubscribed], ["Beschwerde", kpis.complained],
+      ];
+      document.getElementById("kpiRow").innerHTML = items.map(([l, v]) =>
+        `<span class="statChip">${l} <strong>${v ?? 0}</strong></span>`).join("");
+    }
+
+    function renderSegments(segments) {
+      const chips = Object.entries(segments || {}).map(([k, v]) =>
+        `<span class="statChip clickable badge ${k} ${segmentFilter === k ? "active" : ""}" data-seg="${k}">${SEGMENT_LABELS[k] || k} <strong>${v}</strong></span>`).join("");
+      document.getElementById("segmentRow").innerHTML = chips + `<span class="statChip clickable" data-seg="">Alle</span>`;
+      document.querySelectorAll("[data-seg]").forEach((el) => {
+        el.addEventListener("click", () => {
+          segmentFilter = el.getAttribute("data-seg") || "";
+          renderTables(report);
+          renderSegments(report.segments);
+        });
+      });
+    }
+
+    function leadName(r) { return `${r.firstName || ""} ${r.lastName || ""}`.trim() || "—"; }
+    function filteredLeads(list) {
+      if (!segmentFilter) return list;
+      return (list || []).filter((r) => r.segment === segmentFilter);
+    }
+
+    function renderTables(r) {
+      if (!r) return;
+      const all = filteredLeads(r.leads);
+      const followUp = (r.followUpNow || []).filter((x) => !segmentFilter || x.segment === segmentFilter);
+      const top = (r.topInterest || []).filter((x) => !segmentFilter || x.segment === segmentFilter);
+
+      document.querySelector("#followUpTable tbody").innerHTML = followUp.length
+        ? followUp.map((row) => `<tr><td>${escapeHtml(leadName(row))}</td><td>${escapeHtml(row.email)}</td><td><span class="badge ${row.segment}">${SEGMENT_LABELS[row.segment] || row.segment}</span></td><td>${row.score}</td><td>${escapeHtml(row.recommendation || "")}</td></tr>`).join("")
+        : tableLoadingRow(5, "Keine Follow-ups für diesen Filter.");
+      document.querySelector("#topTable tbody").innerHTML = top.length
+        ? top.map((row) => `<tr><td>${escapeHtml(leadName(row))}</td><td>${escapeHtml(row.email)}</td><td>${row.score}</td><td>${row.events?.["resend.opened"] || 0}</td><td>${row.events?.["resend.clicked"] || 0}</td><td>${row.claritySessions || 0}</td></tr>`).join("")
+        : tableLoadingRow(6, "Keine Top-Interesse-Leads für diesen Filter.");
+      document.querySelector("#allTable tbody").innerHTML = all.length
+        ? all.map((row) =>
+          `<tr><td>${escapeHtml(leadName(row))}</td><td>${escapeHtml(row.company || "")}</td><td><span class="badge ${row.segment}">${SEGMENT_LABELS[row.segment] || row.segment}</span></td><td>${row.score}</td><td>${escapeHtml(JSON.stringify(row.events || {}))}</td><td>${row.claritySessions || 0}</td><td>${escapeHtml(row.recommendation || "")}</td></tr>`).join("")
+        : tableLoadingRow(7, "Keine Leads für diesen Filter.");
+      document.getElementById("guideBox").innerHTML = (r.behaviorGuide || BEHAVIOR_GUIDE).map((g) =>
+        `<p><strong>${SEGMENT_LABELS[g.segment] || g.segment}:</strong> ${escapeHtml(g.text)}</p>`).join("");
+    }
+
+    async function loadAnalytics() {
+      const campaign = document.getElementById("campaignInput").value.trim();
+      const query = campaign ? `?utm_campaign=${encodeURIComponent(campaign)}` : "";
+      setAnalyticsLoading(true, campaign
+        ? `Lade Analyse für Kampagne „${campaign}" …`
+        : "Lade Kampagnen-Analyse …");
+      try {
+        const result = await callApi(`/api/admin/campaign/analytics${query}`);
+        if (!result) return;
+        report = result.body.report || {};
+        document.getElementById("debugOut").textContent = JSON.stringify(result.body, null, 2);
+        renderKpis(report.kpis || {});
+        renderSegments(report.segments || {});
+        renderTables(report);
+        const updated = new Date().toLocaleString("de-DE");
+        document.getElementById("loadStatus").hidden = false;
+        document.getElementById("loadStatus").textContent = `Zuletzt geladen: ${updated}`;
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    }
+
+    document.getElementById("loadBtn").addEventListener("click", loadAnalytics);
+    document.getElementById("syncResendBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("syncResendBtn");
+      btn.disabled = true;
+      btn.textContent = "Sync läuft …";
+      setPageLoading(true);
+      try {
+        const result = await callApi("/api/admin/campaign/analytics/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 200 }),
+        });
+        if (result) {
+          showToast("Resend-Sync abgeschlossen");
+          document.getElementById("debugOut").textContent = JSON.stringify(result.body, null, 2);
+          await loadAnalytics();
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Resend → Store";
+        setPageLoading(false);
+      }
+    });
+    document.getElementById("syncTwentyBtn").addEventListener("click", async () => {
+      const btn = document.getElementById("syncTwentyBtn");
+      btn.disabled = true;
+      btn.textContent = "Sync läuft …";
+      setPageLoading(true);
+      try {
+        const result = await callApi("/api/admin/campaign/sync-last-contact", { method: "POST" });
+        if (result) {
+          showToast("Twenty-Sync abgeschlossen");
+          document.getElementById("debugOut").textContent = JSON.stringify(result.body, null, 2);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Store → Twenty";
+        setPageLoading(false);
+      }
+    });
+    loadAnalytics();
+  </script>
+</body>
+</html>

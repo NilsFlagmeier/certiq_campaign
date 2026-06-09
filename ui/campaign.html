@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Certiq Admin Kampagne</title>
+  <link rel="stylesheet" href="/admin/shared.css" />
+  <link rel="stylesheet" href="/admin/campaign.css" />
+</head>
+<body>
+  <div class="wrap wide" id="navMount"></div>
+  <div class="wrap wide">
+    <div class="quickLinks"><a href="/admin/campaign/analytics">→ Kampagnen-Analyse</a></div>
+    <details class="panel detailsBlock">
+      <summary>Tracking — user_id = Twenty People UUID (für Clarity/Analytics)</summary>
+      <p class="muted">Jeder Tracking-Link enthält <code>user_id</code>, <code>utm_*</code> und optional <code>company</code>.</p>
+    </details>
+    <section class="panel">
+      <h2>Kontakt-Historie (Production)</h2>
+      <div class="actions">
+        <button id="syncResendBtn" type="button">1. Resend → Store</button>
+        <button id="syncTwentyBtn" type="button">2. Store → Twenty</button>
+      </div>
+    </section>
+    <div class="metaLine" id="metaLine"></div>
+    <div class="campaignGrid">
+      <div class="campaignLeft">
+        <section class="panel">
+          <h2>Kampagnen-Inhalt</h2>
+          <label class="field">Betreff<input id="subject" value="Kurzes Certiq Update" /></label>
+          <label class="field">Ansprache
+            <select id="addressing"><option value="du">Du</option><option value="sie">Sie</option></select>
+          </label>
+          <label class="field">Absätze<textarea id="paragraphs">ich wollte dir kurz ein Update zu Certiq geben.
+Wir helfen Teams dabei, technische Anforderungen schneller in validierbare Aufgaben zu übersetzen.
+Wenn du möchtest, zeige ich dir das in einem kurzen Call.</textarea></label>
+          <label class="field">CTA Label<input id="ctaLabel" value="Mehr erfahren" /></label>
+          <label class="field">Signatur<textarea id="signature">Viele Gruesse
+Max
+Certiq</textarea></label>
+          <div class="actions">
+            <button id="presetBusiness" type="button">Preset Business Card</button>
+            <button id="presetLive" type="button">Preset Live Demo</button>
+            <button id="suggestBtn" type="button">KI-Vorschlag</button>
+          </div>
+          <details class="detailsBlock" style="margin-top:10px"><summary>Test-E-Mail</summary>
+            <div class="actions"><button id="testBtn" type="button">Test-Mail senden</button></div>
+          </details>
+        </section>
+        <section class="panel">
+          <h2>UTM-Parameter</h2>
+          <label class="field">utm_source<input id="utmSource" value="newsletter" /></label>
+          <label class="field">utm_medium<input id="utmMedium" value="email" /></label>
+          <label class="field">utm_campaign<input id="utmCampaign" value="business_card_intro" /></label>
+          <div class="actions"><button id="refreshLinksBtn" type="button">Links aktualisieren</button></div>
+        </section>
+        <section class="panel">
+          <h2>Leads</h2>
+          <div class="stats">
+            <span class="statChip" id="statTotal">Gesamt <strong>0</strong></span>
+            <span class="statChip sendable" id="statSendable">Versendbar <strong>0</strong></span>
+            <span class="statChip bounced" id="statBounced">Bounced <strong>0</strong></span>
+            <span class="statChip unsubscribed" id="statUnsubscribed">Abgemeldet <strong>0</strong></span>
+            <span class="statChip selected" id="statSelected">Ausgewählt <strong>0</strong></span>
+          </div>
+          <div class="leadListWrap">
+            <div class="leadToolbar">
+              <input id="leadSearch" type="search" placeholder="Suche Name, Firma, E-Mail…" autocomplete="off" />
+              <div class="toolbarRow">
+                <select id="filterStatus">
+                  <option value="all">Alle Status</option>
+                  <option value="sendable">Nur versendbar</option>
+                  <option value="has_email">Mit E-Mail</option>
+                  <option value="no_optout">Ohne Opt-out</option>
+                  <option value="bounced">Bounced</option>
+                  <option value="unsubscribed">Abgemeldet</option>
+                  <option value="blocked">Alle gesperrt</option>
+                </select>
+                <select id="filterContact">
+                  <option value="all">Alle Kontakte</option>
+                  <option value="never">Nie kontaktiert</option>
+                  <option value="contacted">Bereits kontaktiert</option>
+                  <option value="7d">Letzte 7 Tage</option>
+                  <option value="30d">Letzte 30 Tage</option>
+                </select>
+                <select id="sortLeads">
+                  <option value="name_asc">Name A–Z</option>
+                  <option value="company_asc">Firma A–Z</option>
+                  <option value="email_asc">E-Mail A–Z</option>
+                  <option value="contact_desc">Zuletzt kontaktiert</option>
+                  <option value="status">Status</option>
+                </select>
+              </div>
+              <div class="filterMeta">
+                <span id="filterCount">0 von 0 Leads</span>
+                <span>
+                  <select id="pageSize" style="width:auto;margin-top:0"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select>
+                  <button id="prevPage" type="button">‹</button>
+                  <button id="nextPage" type="button">›</button>
+                </span>
+                <button id="resetFiltersBtn" type="button" hidden>Filter zurücksetzen</button>
+              </div>
+            </div>
+            <div id="leadList" class="leadList"></div>
+          </div>
+          <div class="actions">
+            <button id="reloadBtn" type="button">Neu laden</button>
+            <button id="selectPageBtn" type="button">Seite auswählen</button>
+            <button id="selectAllBtn" type="button">Alle versendbaren</button>
+            <button id="clearBtn" type="button">Auswahl leeren</button>
+            <button id="dryRunBtn" type="button">Dry-Run</button>
+            <button id="sendBtn" type="button" class="btn primary">Versand starten</button>
+          </div>
+          <details id="sendLogPanel" class="detailsBlock" style="margin-top:10px"><summary>Send-Log</summary><div id="sendLog"></div></details>
+        </section>
+      </div>
+      <section class="panel stickyPanel">
+        <h2>E-Mail-Vorschau</h2>
+        <p class="muted" id="previewHint">Lead anklicken — Vorschau aktualisiert sich beim Bearbeiten.</p>
+        <div class="previewChrome">
+          <div class="previewSubject" id="previewSubject">Betreff: —</div>
+          <div class="previewRecipient" id="previewRecipient"></div>
+        </div>
+        <iframe id="previewFrame" class="previewFrame" title="E-Mail Vorschau" sandbox="allow-same-origin allow-popups"></iframe>
+        <details class="detailsBlock"><summary>Tracking-Link & Plain-Text</summary>
+          <p class="muted" id="previewMeta"></p>
+          <pre class="debug" id="previewText"></pre>
+        </details>
+      </section>
+    </div>
+  </div>
+  <script src="/admin/shared.js"></script>
+  <script src="/admin/campaign.js"></script>
+</body>
+</html>
